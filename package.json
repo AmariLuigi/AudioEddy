@@ -1,0 +1,50 @@
+{
+  "name": "sonicfix",
+  "version": "1.0.0",
+  "description": "AI-powered audio enhancement application using SonicMaster model",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "backend:dev": "cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "frontend:dev": "cd frontend && npm start",
+    "frontend:web": "cd frontend && npm run web",
+    "frontend:install": "cd frontend && npm install",
+    "backend:install": "cd backend && pip install -r requirements.txt",
+    "install:all": "npm run frontend:install && npm run backend:install",
+    "build:frontend": "cd frontend && npm run build:web",
+    "test:frontend": "cd frontend && npm test",
+    "test:backend": "cd backend && pytest",
+    "test": "npm run test:backend && npm run test:frontend",
+    "docker:build": "cd backend && docker build -t sonicfix-backend .",
+    "docker:run": "docker run -p 8000:8000 sonicfix-backend",
+    "clean": "cd frontend && rm -rf node_modules && cd ../backend && rm -rf __pycache__ .pytest_cache",
+    "setup": "npm run install:all",
+    "start": "npm run dev"
+  },
+  "keywords": [
+    "audio",
+    "enhancement",
+    "ai",
+    "sonicmaster",
+    "react-native",
+    "fastapi",
+    "expo"
+  ],
+  "author": "SonicFix Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/sonicfix.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/sonicfix/issues"
+  },
+  "homepage": "https://github.com/your-username/sonicfix#readme"
+}

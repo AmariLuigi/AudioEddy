@@ -1,0 +1,44 @@
+# FastAPI and web framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# AI/ML dependencies
+torch>=2.0.0
+transformers>=4.30.0
+librosa>=0.10.0
+soundfile>=0.12.0
+numpy>=1.24.0
+scipy>=1.10.0
+diffusers>=0.21.0
+safetensors>=0.3.0
+torchaudio>=2.0.0
+PyYAML>=6.0
+tqdm>=4.65.0
+
+# Database
+# sqlite3 is built-in with Python
+
+# File handling and utilities
+# pathlib, shutil, uuid, typing, logging, datetime, asyncio, os are built-in with Python
+
+# Data validation
+pydantic==2.5.0
+
+# Development and testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2
+
+# Optional: For production deployment
+gunicorn==21.2.0
+
+# Audio processing extras
+ffmpeg-python==0.2.0
+pydub==0.25.1
+
+# GPU monitoring and thermal protection
+nvidia-ml-py==12.535.133
+
+# Optional: Enhanced GPU memory management
+cupy-cuda12x>=12.0.0  # For enhanced GPU memory recycling

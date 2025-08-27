@@ -1,0 +1,52 @@
+# Memory Management Configuration for AudioEddy SonicMaster
+# Conservative settings to prevent system crashes and thermal issues
+
+memory_optimization:
+  # VRAM usage limits (percentage of total GPU memory)
+  max_vram_usage: 0.85  # Aggressive: 85% for GPU-only operation
+  min_free_vram: 0.1   # Minimal free memory for GPU-only mode
+  
+  # CPU offloading settings - DISABLED for GPU-only operation
+  use_cpu_offload: false
+  aggressive_offload_threshold: 0.95  # Disabled - only emergency fallback
+  
+  # Mixed precision settings
+  use_mixed_precision: true
+  
+  # Batch processing limits
+  vae_batch_size: 2     # Reduced from 10 for memory safety
+  max_chunk_duration: 30  # Maximum audio chunk duration in seconds
+  
+thermal_protection:
+  enabled: true
+  max_gpu_temp: 80      # Maximum GPU temperature in Celsius
+  temp_check_interval: 2  # Check temperature every N chunks
+  
+power_management:
+  enabled: true
+  max_power_ratio: 0.9  # Maximum power usage (90% of limit)
+  power_check_interval: 2  # Check power every N chunks
+  
+emergency_settings:
+  enable_fallback: true
+  fallback_to_cpu: true
+  fallback_to_mock: true
+  
+# PyTorch optimization settings
+pytorch_settings:
+  allow_tf32: true
+  expandable_segments: true
+  memory_fraction: 0.5
+
+# CuPy memory management (optional)
+cupy_settings:
+  enabled: true  # Enable CuPy memory recycling if available
+  aggressive_cleanup: true  # Recycle memory after each batch/chunk
+  fallback_gracefully: true  # Continue without CuPy if unavailable
+  
+# Logging settings
+logging:
+  log_memory_usage: true
+  log_thermal_status: true
+  log_power_usage: true
+  detailed_chunk_logging: false
