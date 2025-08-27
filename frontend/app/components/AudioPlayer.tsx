@@ -419,7 +419,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
               setContainerWidth(width);
             }}
           >
-            {((Platform.OS === 'web' && blob) || (Platform.OS !== 'web' && waveformData.length > 0)) ? (
+            {(Platform.OS === 'web' || waveformData.length > 0) ? (
               <View style={styles.waveformWrapper}>
                 {renderWaveform()}
               </View>

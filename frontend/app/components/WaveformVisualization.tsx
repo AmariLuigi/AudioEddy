@@ -147,9 +147,18 @@ const WaveformVisualization: React.FC<WaveformVisualizationProps> = ({
   const handlePress = (event: any) => {
     if (!onSeek) return;
     
-    const { locationX, pageX } = event.nativeEvent;
-    // Use locationX if available, otherwise calculate from pageX
-    const x = locationX !== undefined ? locationX : pageX;
+    let x = 0;
+    
+    if (Platform.OS === 'web') {
+      // For web, use clientX and getBoundingClientRect
+      const rect = event.currentTarget.getBoundingClientRect();
+      x = event.clientX - rect.left;
+    } else {
+      // For React Native, use nativeEvent
+      const { locationX, pageX } = event.nativeEvent;
+      x = locationX !== undefined ? locationX : pageX;
+    }
+    
     const seekPosition = (x / width) * 100;
     onSeek(Math.max(0, Math.min(100, seekPosition)));
   };
@@ -316,6 +325,41 @@ const WaveformVisualization: React.FC<WaveformVisualizationProps> = ({
           No audio data
         </Text>
       </View>
+    );
+  }
+  
+  if (Platform.OS === 'web') {
+    return (
+      <div
+        onClick={onSeek ? handlePress : undefined}
+        style={{
+          width,
+          height,
+          cursor: onSeek ? 'pointer' : 'default',
+          borderRadius: 8,
+          overflow: 'hidden',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor,
+          position: 'relative'
+        }}
+      >
+        {renderWaveform()}
+        
+        {/* Progress indicator */}
+        {showProgress && onSeek && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: (progress / 100) * width - 1,
+            width: 2,
+            height,
+            backgroundColor: progressColor,
+            opacity: 0.8
+          }} />
+        )}
+      </div>
     );
   }
   
