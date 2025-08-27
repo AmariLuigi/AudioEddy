@@ -26,6 +26,11 @@ from .services.storage import StorageService
 from .models import JobStatus, EnhancementType
 from .db import get_db, init_db, DatabaseService
 
+# Import JobManager
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from job_manager import JobManager
+
 app = FastAPI(
     title="SonicFix API", 
     version="1.0.0",
@@ -53,7 +58,10 @@ backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 storage_path = os.path.join(backend_dir, "storage")
 storage_service = StorageService(base_path=storage_path)
 
-# In-memory job tracking for MVP
+# Initialize JobManager for persistent job tracking
+job_manager = JobManager(os.path.join(backend_dir, "jobs_tracker.json"))
+
+# In-memory job tracking for MVP (keeping for backward compatibility)
 jobs = {}
 
 class ProcessRequest(BaseModel):
@@ -70,6 +78,7 @@ class JobResponse(BaseModel):
     progress: Optional[float] = None
     result_file_id: Optional[str] = None
     error: Optional[str] = None
+    custom_prompt: Optional[str] = None
 
 @app.on_event("startup")
 async def startup_event():
@@ -129,31 +138,79 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"Upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/enhance")
-async def enhance_audio(request: EnhanceRequest):
+@app.post("/enhance", response_model=JobResponse)
+async def enhance_audio(request: EnhanceRequest, background_tasks: BackgroundTasks):
     """Enhance audio file with prompt-based processing (no-chunk method)"""
+    job_id = str(uuid.uuid4())
+    
+    # Get original file path for JobManager
+    original_file_path = storage_service.get_file_path(request.file_id)
+    
+    # Add job to JobManager
+    job_manager.add_job(str(original_file_path), job_id)
+    
+    # Initialize job status with custom_prompt enhancement type
+    jobs[job_id] = {
+        "status": JobStatus.PENDING,
+        "progress": 0.0,
+        "file_id": request.file_id,
+        "enhancement_type": "custom_prompt",  # Set to custom_prompt for UI display
+        "created_at": datetime.now(),
+        "result_file_id": None,
+        "error": None,
+        "custom_prompt": request.prompt  # Store the actual prompt
+    }
+    
+    # Start background processing
+    background_tasks.add_task(process_custom_prompt_task, job_id, request.file_id, request.prompt)
+    
+    return JobResponse(
+        job_id=job_id,
+        status=JobStatus.PENDING,
+        progress=0.0
+    )
+
+async def process_custom_prompt_task(job_id: str, file_id: str, prompt: str):
+    """Background task for custom prompt audio processing"""
     try:
-        # Get input file path
-        input_path = storage_service.get_file_path(request.file_id)
-        if not os.path.exists(input_path):
-            raise HTTPException(status_code=404, detail=f"Input file not found: {request.file_id}")
+        jobs[job_id]["status"] = JobStatus.PROCESSING
+        jobs[job_id]["progress"] = 0.1
         
-        # Generate output file ID and path
+        # Update JobManager status
+        job_manager.update_job_status(job_id, "processing")
+        
+        # Get input file path
+        input_path = storage_service.get_file_path(file_id)
+        if not os.path.exists(input_path):
+            raise FileNotFoundError(f"Input file not found: {file_id}")
+        
+        jobs[job_id]["progress"] = 0.3
+        
+        # Process with SonicMaster using no-chunk method
         result_file_id = str(uuid.uuid4())
         output_path = storage_service.get_output_path(result_file_id)
         
-        # Process with SonicMaster using no-chunk method for better quality and duration preservation
-        await sonic_service.enhance_audio_no_chunks(input_path, output_path, request.prompt)
+        jobs[job_id]["progress"] = 0.5
         
-        return {
-            "enhanced_file_id": result_file_id,
-            "message": "Audio enhancement completed successfully",
-            "prompt_used": request.prompt,
-            "processing_method": "no_chunks"
-        }
+        # Use the custom prompt directly
+        await sonic_service.enhance_audio_no_chunks(input_path, output_path, prompt)
+        
+        jobs[job_id]["progress"] = 0.9
+        
+        # Update job completion
+        jobs[job_id]["status"] = JobStatus.COMPLETED
+        jobs[job_id]["progress"] = 1.0
+        jobs[job_id]["result_file_id"] = result_file_id
+        
+        # Update JobManager with completion and enhanced audio path
+        job_manager.update_job_status(job_id, "completed", enhanced_audio_path=str(output_path))
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Enhancement failed: {str(e)}")
+        jobs[job_id]["status"] = JobStatus.FAILED
+        jobs[job_id]["error"] = str(e)
+        
+        # Update JobManager with failure
+        job_manager.update_job_status(job_id, "failed", error_details=str(e))
 
 # Removed /enhance-no-chunks endpoint - functionality moved to main /enhance endpoint
 
@@ -163,6 +220,12 @@ async def enhance_audio(request: EnhanceRequest):
 async def process_audio(request: ProcessRequest, background_tasks: BackgroundTasks):
     """Start audio enhancement processing"""
     job_id = str(uuid.uuid4())
+    
+    # Get original file path for JobManager
+    original_file_path = storage_service.get_file_path(request.file_id)
+    
+    # Add job to JobManager
+    job_manager.add_job(str(original_file_path), job_id)
     
     # Initialize job status
     jobs[job_id] = {
@@ -189,6 +252,9 @@ async def process_audio_task(job_id: str, file_id: str, enhancement_type: Enhanc
     try:
         jobs[job_id]["status"] = JobStatus.PROCESSING
         jobs[job_id]["progress"] = 0.1
+        
+        # Update JobManager status
+        job_manager.update_job_status(job_id, "processing")
         
         # Get input file path
         input_path = storage_service.get_file_path(file_id)
@@ -217,9 +283,15 @@ async def process_audio_task(job_id: str, file_id: str, enhancement_type: Enhanc
         jobs[job_id]["progress"] = 1.0
         jobs[job_id]["result_file_id"] = result_file_id
         
+        # Update JobManager with completion and enhanced audio path
+        job_manager.update_job_status(job_id, "completed", enhanced_audio_path=str(output_path))
+        
     except Exception as e:
         jobs[job_id]["status"] = JobStatus.FAILED
         jobs[job_id]["error"] = str(e)
+        
+        # Update JobManager with failure
+        job_manager.update_job_status(job_id, "failed", error_details=str(e))
 
 @app.get("/job-status/{job_id}", response_model=JobResponse)
 async def get_job_status(job_id: str):
@@ -233,7 +305,32 @@ async def get_job_status(job_id: str):
         status=job["status"],
         progress=job["progress"],
         result_file_id=job["result_file_id"],
-        error=job["error"]
+        error=job["error"],
+        custom_prompt=job.get("custom_prompt")
+    )
+
+class JobInfoResponse(BaseModel):
+    job_id: str
+    original_file_path: Optional[str] = None
+    enhanced_audio_path: Optional[str] = None
+    status: str
+    timestamp: str
+    error_details: Optional[str] = None
+
+@app.get("/job-info/{job_id}", response_model=JobInfoResponse)
+async def get_job_info(job_id: str):
+    """Get job information from JobManager including file paths"""
+    job_info = job_manager.get_job_by_id(job_id)
+    if not job_info:
+        raise HTTPException(status_code=404, detail="Job not found in job tracker")
+    
+    return JobInfoResponse(
+        job_id=job_info["job_id"],
+        original_file_path=job_info["original_file_path"],
+        enhanced_audio_path=job_info["enhanced_audio_path"],
+        status=job_info["status"],
+        timestamp=job_info["timestamp"],
+        error_details=job_info["error_details"]
     )
 
 @app.get("/files")
@@ -311,6 +408,33 @@ async def download_file(file_id: str):
     
     # File not found in either location
     raise HTTPException(status_code=404, detail="File not found")
+
+@app.get("/audio/{job_id}/{audio_type}")
+async def get_audio_by_job(job_id: str, audio_type: str):
+    """Get audio file by job ID and type (original or enhanced)"""
+    if audio_type not in ["original", "enhanced"]:
+        raise HTTPException(status_code=400, detail="Audio type must be 'original' or 'enhanced'")
+    
+    job_info = job_manager.get_job_by_id(job_id)
+    if not job_info:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if audio_type == "original":
+        file_path = job_info["original_file_path"]
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Original audio file not found")
+        filename = f"original_{os.path.basename(file_path)}"
+    else:  # enhanced
+        file_path = job_info["enhanced_audio_path"]
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Enhanced audio file not found")
+        filename = f"enhanced_{job_id}.wav"
+    
+    return FileResponse(
+        path=file_path,
+        media_type='audio/wav',
+        filename=filename
+    )
 
 @app.delete("/delete/{file_id}")
 async def delete_file(file_id: str):

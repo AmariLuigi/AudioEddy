@@ -4,13 +4,11 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Platform,
-  Dimensions
+  Platform
 } from 'react-native';
 import { Audio } from 'expo-av';
 import Slider from '@react-native-community/slider';
 import { AudioVisualizer } from 'react-audio-visualize';
-import WaveformVisualization from './WaveformVisualization';
 
 interface AudioPlayerProps {
   uri: string;
@@ -20,6 +18,8 @@ interface AudioPlayerProps {
   onPlaybackStatusUpdate?: (status: any) => void;
   autoPlay?: boolean;
   variant?: 'compact' | 'full';
+  volume?: number;
+  onVolumeChange?: (volume: number) => void;
 }
 
 interface PlaybackStatus {
@@ -38,7 +38,9 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   showWaveform = false,
   onPlaybackStatusUpdate,
   autoPlay = false,
-  variant = 'full'
+  variant = 'full',
+  volume: externalVolume,
+  onVolumeChange
 }) => {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [status, setStatus] = useState<PlaybackStatus>({
@@ -46,13 +48,11 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     isPlaying: false,
     positionMillis: 0,
     durationMillis: 0,
-    volume: 1.0,
+    volume: externalVolume ?? 1.0,
     isBuffering: false
   });
   const [isLoading, setIsLoading] = useState(false);
   const [blob, setBlob] = useState<Blob | null>(null);
-  const [waveformData, setWaveformData] = useState<number[]>([]);
-  const [containerWidth, setContainerWidth] = useState<number>(300);
   
   // Web audio context for web platform
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -73,22 +73,17 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, [autoPlay, status.isLoaded]);
   
   useEffect(() => {
-    if (showWaveform && uri) {
-      if (Platform.OS === 'web') {
-        fetchAudioBlob();
-      } else {
-        generateWaveformData();
-      }
+    if (showWaveform && uri && Platform.OS === 'web') {
+      fetchAudioBlob();
     }
   }, [uri, showWaveform]);
-
-  // Get screen dimensions for responsive waveform
-  const screenData = Dimensions.get('window');
-  const screenWidth = screenData.width;
-  const isTablet = screenWidth > 768;
-  const padding = isTablet ? 64 : 32;
-  const maxWidth = isTablet ? 600 : screenWidth - padding;
-  const waveformWidth = Math.min(screenWidth - padding, maxWidth);
+  
+  // Sync with external volume changes
+  useEffect(() => {
+    if (externalVolume !== undefined && externalVolume !== status.volume) {
+      setVolume(externalVolume);
+    }
+  }, [externalVolume]);
   
   const loadAudio = async () => {
     try {
@@ -255,6 +250,11 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       }
       
       setStatus(prev => ({ ...prev, volume }));
+      
+      // Call external volume change callback
+      if (onVolumeChange) {
+        onVolumeChange(volume);
+      }
     } catch (error) {
       console.error('Error setting volume:', error);
     }
@@ -286,59 +286,45 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     return (status.positionMillis / status.durationMillis) * 100;
   };
 
-  // Generate waveform data for React Native
-  const generateWaveformData = () => {
-    // Generate mock waveform data for demonstration
-    // In a real app, you'd analyze the audio file
-    const data = Array.from({ length: 100 }, () => Math.random() * 100);
-    setWaveformData(data);
+  // Handle waveform click for seeking
+  const handleWaveformClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!status.isLoaded || status.durationMillis === 0) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const percentage = (x / rect.width) * 100;
+    const seekPosition = Math.max(0, Math.min(100, percentage));
+    const positionMillis = (seekPosition / 100) * status.durationMillis;
+    
+    seekTo(positionMillis);
   };
 
-  // Handle waveform seek
-  const handleWaveformSeek = (position: number) => {
-    const newPositionMillis = (position / 100) * status.durationMillis;
-    seekTo(newPositionMillis);
-  };
-
-  // Render responsive waveform
+  // Render AudioVisualizer for web platform
   const renderWaveform = () => {
-    if (!showWaveform) return null;
+    if (!showWaveform || Platform.OS !== 'web' || !blob) return null;
     
-    // Use actual container width, fallback to calculated width
-    const actualWidth = containerWidth > 0 ? containerWidth - 16 : waveformWidth; // Subtract padding
-    
-    if (Platform.OS === 'web' && blob) {
-      return React.createElement(AudioVisualizer, {
+    if (Platform.OS === 'web') {
+      return React.createElement('div', {
+        onClick: handleWaveformClick,
+        style: {
+          cursor: 'pointer',
+          borderRadius: 8,
+          overflow: 'hidden'
+        }
+      }, React.createElement(AudioVisualizer, {
         blob: blob,
-        width: actualWidth,
-        height: 64, // Reduced height to fit in container with padding
+        width: 300,
+        height: 80,
         barWidth: 2,
         gap: 1,
         barColor: '#d1d5db',
         barPlayedColor: '#3b82f6',
         currentTime: status.positionMillis / 1000,
         style: { borderRadius: 8 }
-      });
+      }));
     }
     
-    // Use custom WaveformVisualization for React Native or as fallback
-    return (
-      <WaveformVisualization
-        waveformData={waveformData.length > 0 ? waveformData : undefined}
-        width={actualWidth}
-        height={64}
-        color="#d1d5db"
-        progressColor="#3b82f6"
-        backgroundColor="transparent"
-        progress={getProgressPercentage()}
-        onSeek={handleWaveformSeek}
-        showProgress={true}
-        animated={false}
-        barWidth={2}
-        barSpacing={1}
-        variant="bars"
-      />
-    );
+    return null;
   };
   
   const handlePlayPause = () => {
@@ -411,18 +397,10 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
         )}
         
         {/* Waveform */}
-        {showWaveform && (
-          <View 
-            style={styles.waveformContainer}
-            onLayout={(event) => {
-              const { width } = event.nativeEvent.layout;
-              setContainerWidth(width);
-            }}
-          >
-            {(Platform.OS === 'web' || waveformData.length > 0) ? (
-              <View style={styles.waveformWrapper}>
-                {renderWaveform()}
-              </View>
+        {showWaveform && Platform.OS === 'web' && (
+          <View style={styles.waveformContainer}>
+            {blob ? (
+              renderWaveform()
             ) : (
               <View style={styles.waveformLoading}>
                 <Text style={styles.waveformLoadingText}>Loading waveform...</Text>
@@ -591,25 +569,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#f9fafb',
     borderRadius: 8,
     padding: 8,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  waveformWrapper: {
-    width: '100%',
-    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
   waveformLoading: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    flex: 1,
   },
   waveformLoadingText: {
     fontSize: 14,
     color: '#6b7280',
-    fontStyle: 'italic',
   },
   progressContainer: {
     gap: 8,

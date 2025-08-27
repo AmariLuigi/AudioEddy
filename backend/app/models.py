@@ -18,6 +18,7 @@ class EnhancementType(str, Enum):
     VOCAL_ENHANCE = "vocal_enhance"
     BASS_BOOST = "bass_boost"
     CLARITY_BOOST = "clarity_boost"
+    CUSTOM_PROMPT = "custom_prompt"
 
 class AudioFile(BaseModel):
     """Audio file metadata model"""

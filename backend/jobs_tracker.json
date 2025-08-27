@@ -1,0 +1,76 @@
+{
+  "jobs": [
+    {
+      "job_id": "example-job-123",
+      "original_file_path": "/path/to/original/audio.wav",
+      "enhanced_audio_path": "/path/to/enhanced/audio.wav",
+      "status": "completed",
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "error_details": null
+    },
+    {
+      "job_id": "d71c449b-dfda-414e-b9d3-3bd3e6ae8124",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\c1a6c342-f40b-4292-9f2c-5acca7306c0e.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\2ec70338-7a7e-46c3-b9a0-f8fce1d0cfc3.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:30:25.001016Z",
+      "error_details": null
+    },
+    {
+      "job_id": "6f938995-d56d-41c2-ab24-6500f1d6dd67",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\c1a6c342-f40b-4292-9f2c-5acca7306c0e.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\541f67e2-0b12-4097-9755-81d9f5885381.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:33:23.290316Z",
+      "error_details": null
+    },
+    {
+      "job_id": "1213d47e-a647-4480-bae8-83ab15aabeec",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\0018a35c-146f-42fb-9196-57c11a716450.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\64a2cfe1-f1b8-4aa8-9cb8-9e324398e5a6.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:34:13.102696Z",
+      "error_details": null
+    },
+    {
+      "job_id": "ddf1e24c-9dce-4331-9ced-1eedc4d8f937",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\0018a35c-146f-42fb-9196-57c11a716450.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\1bdc0ad6-0d6d-49b8-b4c2-2f92d598954c.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:42:10.659313Z",
+      "error_details": null
+    },
+    {
+      "job_id": "42cccfee-c8ab-4224-bc69-771cafe9eb26",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\0018a35c-146f-42fb-9196-57c11a716450.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\90a2adf7-356b-4b54-ace0-e3891be9caba.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:45:31.604854Z",
+      "error_details": null
+    },
+    {
+      "job_id": "f049b027-020e-473c-a3f5-a95d8ea94366",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\0018a35c-146f-42fb-9196-57c11a716450.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\173e4b01-fe94-40cd-bdde-3685992f44f2.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:46:05.052892Z",
+      "error_details": null
+    },
+    {
+      "job_id": "1f4ddecf-825f-44da-a418-dfa5e2b1394a",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\0018a35c-146f-42fb-9196-57c11a716450.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\35e42f0c-0a2e-4d1c-b07f-2fcde6de8418.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:49:47.504842Z",
+      "error_details": null
+    },
+    {
+      "job_id": "69f328a9-0494-4453-88cd-47089aa3b024",
+      "original_file_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\uploads\\0018a35c-146f-42fb-9196-57c11a716450.wav",
+      "enhanced_audio_path": "Z:\\PROJECTS\\AudioEddy\\backend\\storage\\outputs\\d8f72751-0545-48c9-b23d-33727034bcad.wav",
+      "status": "completed",
+      "timestamp": "2025-08-27T15:53:27.952915Z",
+      "error_details": null
+    }
+  ]
+}

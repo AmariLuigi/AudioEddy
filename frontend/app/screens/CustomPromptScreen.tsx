@@ -14,6 +14,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../store';
 import { showSuccessNotification, showErrorNotification } from '../store/slices/uiSlice';
+import { setCurrentJob } from '../store/slices/jobsSlice';
 import { audioAPI } from '../utils/api';
 import { RootStackParamList } from '../../App';
 import { useTheme } from '../theme/ThemeContext';
@@ -63,6 +64,19 @@ const CustomPromptScreen: React.FC = () => {
     
     try {
       const result = await audioAPI.enhanceWithPrompt(fileId, prompt.trim());
+      
+      // Create job in Redux store
+      const newJob = {
+        id: result.job_id,
+        fileId: fileId,
+        enhancementType: 'custom_prompt' as const,
+        status: result.status,
+        progress: result.progress || 0,
+        createdAt: new Date().toISOString(),
+        customPrompt: prompt.trim(),
+      };
+      
+      dispatch(setCurrentJob(newJob));
       
       dispatch(showSuccessNotification({
         title: 'Processing Started',

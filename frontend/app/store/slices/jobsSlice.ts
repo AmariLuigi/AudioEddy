@@ -14,6 +14,7 @@ export interface ProcessingJob {
   completedAt?: string;
   resultFileId?: string;
   error?: string;
+  customPrompt?: string;
 }
 
 export interface JobsState {
@@ -209,6 +210,9 @@ const jobsSlice = createSlice({
           if (jobData.error) {
             state.jobs[jobIndex].error = jobData.error;
           }
+          if (jobData.custom_prompt) {
+            state.jobs[jobIndex].customPrompt = jobData.custom_prompt;
+          }
         }
         
         // Update current job if it matches
@@ -220,6 +224,9 @@ const jobsSlice = createSlice({
           }
           if (jobData.error) {
             state.currentJob.error = jobData.error;
+          }
+          if (jobData.custom_prompt) {
+            state.currentJob.customPrompt = jobData.custom_prompt;
           }
         }
         

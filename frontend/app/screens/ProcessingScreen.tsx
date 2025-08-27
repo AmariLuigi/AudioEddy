@@ -57,14 +57,21 @@ const ProcessingScreen: React.FC = () => {
   }, []);
   
   useEffect(() => {
-    // Navigate to results when job is completed
-    if (currentJob?.status === 'completed' && currentJob) {
-      navigation.replace('Results', {
+    // Navigate to results when job is completed and has result file
+    if (currentJob?.status === 'completed' && currentJob?.resultFileId) {
+      const navigationParams: any = {
         jobId: currentJob.id,
         originalFileId: fileId
-      });
+      };
+      
+      // For custom prompts, pass the prompt used
+      if (enhancementType === 'custom_prompt' && currentJob.customPrompt) {
+        navigationParams.promptUsed = currentJob.customPrompt;
+      }
+      
+      navigation.replace('Results', navigationParams);
     }
-  }, [currentJob?.status, navigation, fileId, enhancementType, currentJob?.id]);
+  }, [currentJob?.status, currentJob?.resultFileId, navigation, fileId, enhancementType, currentJob?.id, currentJob?.customPrompt]);
   
   const getProgressPercentage = () => {
     if (!currentJob) return 0;

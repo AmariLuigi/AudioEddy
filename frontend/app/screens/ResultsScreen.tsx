@@ -39,6 +39,7 @@ const ResultsScreen: React.FC = () => {
   const { uploadedFiles } = useSelector((state: RootState) => state.audio);
   
   const [activeTab, setActiveTab] = useState<'original' | 'enhanced'>('enhanced');
+  const [sharedVolume, setSharedVolume] = useState<number>(1.0);
   
   const currentFile = uploadedFiles.find(file => file.id === originalFileId);
   const currentJob = jobs.find(job => job.id === jobId);
@@ -263,6 +264,8 @@ const ResultsScreen: React.FC = () => {
                     subtitle={currentFile?.filename || 'Original file'}
                     showWaveform={true}
                     variant="full"
+                    volume={sharedVolume}
+                    onVolumeChange={setSharedVolume}
                   />
                 )}
                 
@@ -273,6 +276,8 @@ const ResultsScreen: React.FC = () => {
                     subtitle={`Enhanced with ${enhancementInfo.name}`}
                     showWaveform={true}
                     variant="full"
+                    volume={sharedVolume}
+                    onVolumeChange={setSharedVolume}
                   />
                 )}
                 
@@ -288,28 +293,7 @@ const ResultsScreen: React.FC = () => {
               </View>
             </View>
             
-            {/* Quick Compare */}
-            <View style={styles.quickCompareContainer}>
-              <TouchableOpacity
-                style={[styles.button, styles.outlineButton, { flex: 1, marginRight: 8 }]}
-                onPress={() => setActiveTab('original')}
-                disabled={!getOriginalAudioUrl()}
-              >
-                <Text style={[styles.outlineButtonText, !getOriginalAudioUrl() && styles.disabledButtonText]}>
-                  Play Original
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[styles.button, styles.primaryButton, { flex: 1, marginLeft: 8 }]}
-                onPress={() => setActiveTab('enhanced')}
-                disabled={!getEnhancedAudioUrl()}
-              >
-                <Text style={[styles.primaryButtonText, !getEnhancedAudioUrl() && styles.disabledButtonText]}>
-                  Play Enhanced
-                </Text>
-              </TouchableOpacity>
-            </View>
+
           </View>
         </View>
         
@@ -536,10 +520,7 @@ const styles = StyleSheet.create({
   disabledButtonText: {
     opacity: 0.5,
   },
-  quickCompareContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+
   enhancementHeader: {
     flexDirection: 'row',
     alignItems: 'center',
