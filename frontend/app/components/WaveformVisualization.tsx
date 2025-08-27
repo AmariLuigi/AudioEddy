@@ -147,8 +147,10 @@ const WaveformVisualization: React.FC<WaveformVisualizationProps> = ({
   const handlePress = (event: any) => {
     if (!onSeek) return;
     
-    const { locationX } = event.nativeEvent;
-    const seekPosition = (locationX / width) * 100;
+    const { locationX, pageX } = event.nativeEvent;
+    // Use locationX if available, otherwise calculate from pageX
+    const x = locationX !== undefined ? locationX : pageX;
+    const seekPosition = (x / width) * 100;
     onSeek(Math.max(0, Math.min(100, seekPosition)));
   };
   
@@ -318,7 +320,12 @@ const WaveformVisualization: React.FC<WaveformVisualizationProps> = ({
   }
   
   return (
-    <TouchableOpacity onPress={handlePress} disabled={!onSeek}>
+    <TouchableOpacity 
+      onPress={handlePress} 
+      disabled={!onSeek}
+      activeOpacity={0.8}
+      style={{ width, height }}
+    >
       <View style={[
         styles.waveformContainer,
         { width, height, backgroundColor }
