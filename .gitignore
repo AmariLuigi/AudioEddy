@@ -284,6 +284,9 @@ enhanced_*.wav
 *_enhanced.wav
 *_processed.wav
 
+# Separate Git repositories
+SonicMaster/
+
 # Docker
 .dockerignore
 
