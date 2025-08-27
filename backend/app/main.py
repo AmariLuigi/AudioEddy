@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ import shutil
 from typing import Optional
 import asyncio
 from datetime import datetime
+from pathlib import Path
 import logging
 
 # Configure logging to show debug information
@@ -23,9 +24,15 @@ logger = logging.getLogger(__name__)
 from .services.local_sonicmaster import LocalSonicMasterService
 from .services.storage import StorageService
 from .models import JobStatus, EnhancementType
-from .db import get_db, init_db
+from .db import get_db, init_db, DatabaseService
 
-app = FastAPI(title="SonicFix API", version="1.0.0")
+app = FastAPI(
+    title="SonicFix API", 
+    version="1.0.0",
+    # Optimize for large file uploads
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
 # CORS middleware for frontend integration
 app.add_middleware(
@@ -35,6 +42,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Remove ineffective middleware - FastAPI handles multipart efficiently by default
 
 # Initialize services
 sonic_service = LocalSonicMasterService()
@@ -66,26 +75,59 @@ class JobResponse(BaseModel):
 async def startup_event():
     """Initialize database and services on startup"""
     init_db()
+    
+    # Initialize AI service (will use mock processing in development mode)
     await sonic_service.initialize()
 
 @app.post("/upload")
-async def upload_audio(file: UploadFile = File(...)):
-    """Upload audio file for processing"""
-    # Check if file has content_type and if it's an audio file
-    if not file.content_type or not file.content_type.startswith('audio/'):
-        # Also check file extension as fallback
+async def upload_file(file: UploadFile = File(...)):
+    """Upload audio file"""
+    try:
+        logger.info(f"Upload request received - filename: {file.filename}, content_type: {file.content_type}")
+        
+        # Validate file type
         if not file.filename or not any(file.filename.lower().endswith(ext) for ext in ['.wav', '.mp3', '.flac', '.m4a', '.ogg']):
-            raise HTTPException(status_code=400, detail="File must be an audio file")
-    
-    file_id = str(uuid.uuid4())
-    file_path = await storage_service.save_upload(file, file_id)
-    
-    return {
-        "file_id": file_id,
-        "filename": file.filename,
-        "size": file.size,
-        "upload_time": datetime.now().isoformat()
-    }
+            logger.error(f"Invalid file type: {file.filename}")
+            raise HTTPException(status_code=400, detail="Invalid file type")
+        
+        # Generate unique file ID
+        file_id = str(uuid.uuid4())
+        file_extension = Path(file.filename).suffix
+        file_path = storage_service.uploads_path / f"{file_id}{file_extension}"
+        
+        logger.info(f"Saving file to: {file_path}")
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Get file size
+        file_size = os.path.getsize(file_path)
+        logger.info(f"File saved successfully - size: {file_size} bytes")
+        
+        # Save to database
+        DatabaseService.save_audio_file(
+            file_id=file_id,
+            filename=file.filename,
+            size=file_size,
+            content_type=file.content_type or 'audio/wav',
+            file_path=str(file_path)
+        )
+        
+        logger.info(f"Upload completed successfully - file_id: {file_id}")
+        
+        return {
+            "file_id": file_id,
+            "filename": file.filename,
+            "size": file_size,
+            "upload_time": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/enhance")
 async def enhance_audio(request: EnhanceRequest):
@@ -194,6 +236,56 @@ async def get_job_status(job_id: str):
         error=job["error"]
     )
 
+@app.get("/files")
+async def list_files():
+    """List all uploaded audio files that still exist on disk"""
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, filename, size, content_type, upload_time, file_path
+                FROM audio_files
+                ORDER BY upload_time DESC
+            """)
+            files = cursor.fetchall()
+            
+            # Filter files to only include those that still exist on disk
+            existing_files = []
+            files_to_cleanup = []
+            
+            for file in files:
+                file_id = file[0]
+                file_path = storage_service.get_file_path(file_id)
+                
+                # Check if the physical file still exists
+                if os.path.exists(file_path):
+                    existing_files.append({
+                        "id": file[0],
+                        "filename": file[1],
+                        "size": file[2],
+                        "content_type": file[3],
+                        "upload_time": file[4],
+                        "file_path": file[5]
+                    })
+                else:
+                    # Mark for cleanup from database
+                    files_to_cleanup.append(file_id)
+                    logger.warning(f"File {file_id} ({file[1]}) not found on disk, will be removed from database")
+            
+            # Clean up database entries for missing files
+            if files_to_cleanup:
+                for file_id in files_to_cleanup:
+                    cursor.execute("DELETE FROM audio_files WHERE id = ?", (file_id,))
+                    cursor.execute("DELETE FROM processing_jobs WHERE file_id = ?", (file_id,))
+                conn.commit()
+                logger.info(f"Cleaned up {len(files_to_cleanup)} missing files from database")
+            
+            return {"files": existing_files}
+            
+    except Exception as e:
+        logger.error(f"Failed to list files: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list files: {str(e)}")
+
 @app.get("/download/{file_id}")
 async def download_file(file_id: str):
     """Download audio file (original or enhanced)"""
@@ -219,6 +311,54 @@ async def download_file(file_id: str):
     
     # File not found in either location
     raise HTTPException(status_code=404, detail="File not found")
+
+@app.delete("/delete/{file_id}")
+async def delete_file(file_id: str):
+    """Delete uploaded audio file"""
+    try:
+        # Check if file exists in database
+        file_record = DatabaseService.get_audio_file(file_id)
+        if not file_record:
+            raise HTTPException(status_code=404, detail="File not found in database")
+        
+        upload_deleted = False
+        output_deleted = False
+        
+        # Try to delete the physical file in uploads
+        upload_path = storage_service.get_file_path(file_id)
+        if os.path.exists(upload_path):
+            upload_deleted = storage_service.delete_file(upload_path)
+        
+        # Also try to delete any enhanced version in outputs
+        output_path = storage_service.get_output_path(file_id)
+        if os.path.exists(output_path):
+            output_deleted = storage_service.delete_file(output_path)
+        
+        # Clean up any related jobs from memory
+        jobs_to_remove = [job_id for job_id, job in jobs.items() if job.get("file_id") == file_id]
+        for job_id in jobs_to_remove:
+            del jobs[job_id]
+        
+        # Delete from database
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM audio_files WHERE id = ?", (file_id,))
+            cursor.execute("DELETE FROM processing_jobs WHERE file_id = ?", (file_id,))
+            conn.commit()
+        
+        return {
+            "message": "File deleted successfully",
+            "file_id": file_id,
+            "upload_deleted": upload_deleted,
+            "output_deleted": output_deleted,
+            "database_deleted": True
+        }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete file {file_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
 
 @app.get("/health")
 async def health_check():

@@ -21,6 +21,7 @@ tqdm>=4.65.0
 
 # File handling and utilities
 # pathlib, shutil, uuid, typing, logging, datetime, asyncio, os are built-in with Python
+aiofiles>=24.1.0
 
 # Data validation
 pydantic==2.5.0

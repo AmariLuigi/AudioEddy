@@ -1,0 +1,19 @@
+@echo off
+echo Starting AudioEddy Development Servers...
+
+echo Starting Backend Server...
+start "Backend Server" cmd /k "cd /d Z:\PROJECTS\AudioEddy\backend && (if exist venv (venv\Scripts\activate) else (python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt)) && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+echo Waiting for backend to initialize...
+timeout /t 3 /nobreak >nul
+
+echo Starting Frontend Server...
+start "Frontend Server" cmd /k "cd /d Z:\PROJECTS\AudioEddy\frontend && npx expo start --web --port 3000"
+
+echo.
+echo Development servers are starting...
+echo Frontend: http://localhost:3000
+echo Backend: http://localhost:8000
+echo.
+echo Press any key to exit...
+pause >nul

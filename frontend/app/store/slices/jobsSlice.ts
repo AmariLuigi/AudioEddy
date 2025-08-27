@@ -32,6 +32,13 @@ const initialState: JobsState = {
   error: null,
 };
 
+// Reset processing state on app load to prevent stuck states from persistence
+const resetProcessingState = (state: JobsState) => {
+  state.isProcessing = false;
+  state.isDownloading = false;
+  state.error = null;
+};
+
 // Async thunks
 export const startProcessing = createAsyncThunk(
   'jobs/startProcessing',
@@ -157,6 +164,9 @@ const jobsSlice = createSlice({
       state.currentJob = null;
       state.isProcessing = false;
     },
+    resetProcessingFlags: (state) => {
+      resetProcessingState(state);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -177,7 +187,7 @@ const jobsSlice = createSlice({
         
         state.jobs.push(newJob);
         state.currentJob = newJob;
-        state.isProcessing = true;
+        state.isProcessing = false; // Reset to false after successful job creation
       })
       .addCase(startProcessing.rejected, (state, action) => {
         state.isProcessing = false;
@@ -245,6 +255,7 @@ export const {
   clearError,
   removeJob,
   clearAllJobs,
+  resetProcessingFlags,
 } = jobsSlice.actions;
 
 export default jobsSlice.reducer;

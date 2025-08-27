@@ -5,33 +5,35 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Alert
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useSelector, useDispatch } from 'react-redux';
 import * as DocumentPicker from 'expo-document-picker';
-import { Platform } from 'react-native';
 import { RootState, AppDispatch } from '../store';
-import { uploadAudioFile, generateWaveform } from '../store/slices/audioSlice';
-import { startProcessing } from '../store/slices/jobsSlice';
+import { uploadAudioFile, generateWaveform, setCurrentFile, deleteAudioFile, fetchAudioFiles } from '../store/slices/audioSlice';
+import { startProcessing, resetProcessingFlags } from '../store/slices/jobsSlice';
 import { showErrorNotification, showSuccessNotification } from '../store/slices/uiSlice';
 import { apiUtils } from '../utils/api';
 import { RootStackParamList } from '../../App';
 import { EnhancementType } from '../store/slices/jobsSlice';
 import { useTheme } from '../theme/ThemeContext';
+import { ConfirmationModal } from '../components';
 
 type UploadScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Upload'>;
 
 const UploadScreen: React.FC = () => {
   const navigation = useNavigation<UploadScreenNavigationProp>();
   const dispatch = useDispatch<AppDispatch>();
-  const { currentFile, uploadProgress, error, isUploading } = useSelector((state: RootState) => state.audio);
+  const { currentFile, uploadedFiles, uploadProgress, error, isUploading } = useSelector((state: RootState) => state.audio);
   const { theme } = useTheme();
   const { isProcessing } = useSelector((state: RootState) => state.jobs);
   
   const [selectedEnhancement, setSelectedEnhancement] = useState<EnhancementType | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const enhancementOptions = [
     {
@@ -86,6 +88,13 @@ const UploadScreen: React.FC = () => {
   ];
 
   useEffect(() => {
+    // Fetch files from backend when component mounts
+    dispatch(fetchAudioFiles());
+    // Reset any stuck processing flags from persisted state
+    dispatch(resetProcessingFlags());
+  }, [dispatch]);
+
+  useEffect(() => {
     if (currentFile && !currentFile.waveformData) {
       // Generate waveform for uploaded file
       dispatch(generateWaveform(currentFile.uri || ''));
@@ -102,7 +111,7 @@ const UploadScreen: React.FC = () => {
       if (!result.canceled && result.assets[0]) {
         const file = result.assets[0];
         
-        // Validate file size (max 50MB for MVP)
+        // Validate file size (max 50MB)
         if (file.size && file.size > 50 * 1024 * 1024) {
           dispatch(showErrorNotification({
             title: 'File Too Large',
@@ -111,12 +120,20 @@ const UploadScreen: React.FC = () => {
           return;
         }
 
-        // Upload file
-        dispatch(uploadAudioFile({
-          uri: file.uri,
-          name: file.name,
-          type: file.mimeType || 'audio/wav'
-        }));
+        // Create File object for web or use URI for mobile
+        if (Platform.OS === 'web') {
+          const blob = await fetch(file.uri).then(r => r.blob());
+          const webFile = new File([blob], file.name, { type: file.mimeType || 'audio/wav' });
+          dispatch(uploadAudioFile(webFile));
+        } else {
+          // For mobile, create a File-like object from DocumentPickerAsset
+          const mobileFile = new File(
+            [await fetch(file.uri).then(r => r.blob())], 
+            file.name, 
+            { type: file.mimeType || 'audio/wav' }
+          );
+          dispatch(uploadAudioFile(mobileFile));
+        }
       }
     } catch (error) {
       dispatch(showErrorNotification({
@@ -154,12 +171,7 @@ const UploadScreen: React.FC = () => {
         return;
       }
 
-      // Upload file
-      dispatch(uploadAudioFile({
-        uri: URL.createObjectURL(file),
-        name: file.name,
-        type: file.type
-      }));
+      dispatch(uploadAudioFile(file));
     }
   };
 
@@ -172,6 +184,50 @@ const UploadScreen: React.FC = () => {
   const handleDragLeave = () => {
     if (Platform.OS !== 'web') return;
     setDragActive(false);
+  };
+
+  const handleFileSelect = (file: any) => {
+    dispatch(setCurrentFile(file));
+    setSelectedEnhancement(null); // Reset enhancement selection when changing files
+  };
+
+  const handleDeleteFile = (fileId: string, fileName: string) => {
+    setFileToDelete({ id: fileId, name: fileName });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteFile = async () => {
+    if (!fileToDelete) return;
+    
+    console.log('🚨 DELETE CONFIRMED - File ID:', fileToDelete.id, 'File Name:', fileToDelete.name);
+    
+    try {
+      const result = await dispatch(deleteAudioFile(fileToDelete.id));
+      console.log('Delete result:', result);
+      if (deleteAudioFile.fulfilled.match(result)) {
+        dispatch(showSuccessNotification({
+          title: 'File Deleted',
+          message: `"${fileToDelete.name}" has been deleted successfully.`
+        }));
+      } else {
+        console.error('Delete failed:', result);
+        throw new Error('Failed to delete file');
+      }
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      dispatch(showErrorNotification({
+        title: 'Delete Failed',
+        message: error.message || 'Failed to delete file'
+      }));
+    } finally {
+      setShowDeleteModal(false);
+      setFileToDelete(null);
+    }
+  };
+
+  const cancelDeleteFile = () => {
+    setShowDeleteModal(false);
+    setFileToDelete(null);
   };
 
   const handleStartProcessing = async () => {
@@ -259,7 +315,7 @@ const UploadScreen: React.FC = () => {
           <View style={styles.cardContent}>
             <Text style={dynamicStyles.heading}>Upload Audio File</Text>
             
-            {!currentFile ? (
+            {uploadedFiles.length === 0 ? (
               <TouchableOpacity
                 onPress={handleFilePicker}
               >
@@ -290,24 +346,17 @@ const UploadScreen: React.FC = () => {
                 </View>
               </TouchableOpacity>
             ) : (
-              <View style={styles.fileCard}>
-                <View style={styles.fileInfo}>
-                  <View style={styles.fileIcon}>
-                    <Text style={styles.fileIconText}>🎵</Text>
-                  </View>
-                  
-                  <View style={styles.fileDetails}>
-                    <Text style={dynamicStyles.fileName} numberOfLines={1}>
-                      {currentFile.filename}
-                    </Text>
-                    <Text style={dynamicStyles.fileSize}>
-                      {apiUtils.formatFileSize(currentFile.size)}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Uploaded</Text>
-                  </View>
+              <View style={styles.uploadedFilesSection}>
+                <View style={styles.uploadedFilesHeader}>
+                  <Text style={dynamicStyles.uploadSubtitle}>
+                    {uploadedFiles.length} file{uploadedFiles.length > 1 ? 's' : ''} uploaded
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.uploadAnotherButton}
+                    onPress={handleFilePicker}
+                  >
+                    <Text style={styles.uploadAnotherButtonText}>+ Upload Another</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
@@ -333,6 +382,80 @@ const UploadScreen: React.FC = () => {
             )}
           </View>
         </View>
+
+        {/* File Selection */}
+        {uploadedFiles.length > 0 && (
+          <View style={dynamicStyles.card}>
+            <View style={styles.cardContent}>
+              <Text style={dynamicStyles.heading}>
+                 {uploadedFiles.length > 1 ? 'Select File to Process' : 'File to Process'}
+               </Text>
+               <Text style={dynamicStyles.uploadSubtitle}>
+                 {uploadedFiles.length > 1 
+                   ? 'Choose which uploaded file you want to enhance'
+                   : 'This file will be enhanced'
+                 }
+               </Text>
+              
+              <View style={styles.fileList}>
+                {uploadedFiles.map((file) => (
+                  <View key={file.id} style={[
+                    styles.fileSelectCard,
+                    currentFile?.id === file.id && styles.fileSelectCardSelected
+                  ]}>
+                    <TouchableOpacity
+                      onPress={() => handleFileSelect(file)}
+                      style={styles.fileSelectContent}
+                    >
+                      <View style={styles.fileInfo}>
+                        <View style={[
+                          styles.fileIcon,
+                          currentFile?.id === file.id && styles.fileIconSelected
+                        ]}>
+                          <Text style={styles.fileIconText}>🎵</Text>
+                        </View>
+                        
+                        <View style={styles.fileDetails}>
+                          <Text style={[
+                            dynamicStyles.fileName,
+                            currentFile?.id === file.id && styles.fileNameSelected
+                          ]} numberOfLines={1}>
+                            {file.filename}
+                          </Text>
+                          <Text style={[
+                            dynamicStyles.fileSize,
+                            currentFile?.id === file.id && styles.fileSizeSelected
+                          ]}>
+                            {apiUtils.formatFileSize(file.size)}
+                          </Text>
+                          <Text style={[
+                            dynamicStyles.fileSize,
+                            currentFile?.id === file.id && styles.fileSizeSelected
+                          ]}>
+                            Uploaded: {new Date(file.uploadTime).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                    
+                    {currentFile?.id === file.id && (
+                      <View style={styles.checkmarkBottomRight}>
+                        <Text style={styles.checkmarkText}>✓</Text>
+                      </View>
+                    )}
+                    
+                    <TouchableOpacity
+                      onPress={() => handleDeleteFile(file.id, file.filename)}
+                      style={styles.deleteButton}
+                    >
+                      <Text style={styles.deleteButtonText}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Enhancement Selection */}
         {currentFile && (
@@ -409,6 +532,17 @@ const UploadScreen: React.FC = () => {
           </TouchableOpacity>
         )}
       </View>
+      
+      <ConfirmationModal
+         visible={showDeleteModal}
+         title="Delete File"
+         message={`Are you sure you want to delete "${fileToDelete?.name}"? This action cannot be undone.`}
+         confirmText="Delete"
+         cancelText="Cancel"
+         onConfirm={confirmDeleteFile}
+         onCancel={cancelDeleteFile}
+         destructive={true}
+       />
     </ScrollView>
   );
 };
@@ -633,6 +767,87 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  fileList: {
+    gap: 12,
+  },
+  fileSelectCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: '#ffffff',
+    position: 'relative',
+  },
+  fileSelectCardSelected: {
+    borderColor: '#3b82f6',
+    backgroundColor: '#eff6ff',
+  },
+  fileIconSelected: {
+    backgroundColor: '#dbeafe',
+  },
+  fileNameSelected: {
+    color: '#1d4ed8',
+  },
+  fileSizeSelected: {
+    color: '#2563eb',
+  },
+  uploadedFilesSection: {
+    gap: 16,
+  },
+  uploadedFilesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  uploadAnotherButton: {
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  uploadAnotherButtonText: {
+    color: '#374151',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  fileSelectContent: {
+    flex: 1,
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#fee2e2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 10,
+  },
+  checkmarkBottomRight: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 16,
   },
 });
 

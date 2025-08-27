@@ -48,7 +48,29 @@ SonicFix is an AI-powered audio enhancement application that uses the SonicMaste
 
 ## 🛠️ Installation & Setup
 
-### Backend Setup
+### Quick Start (Recommended)
+
+**For Windows users, use the automated startup scripts:**
+
+1. **PowerShell Script** (Recommended):
+   ```powershell
+   .\start-dev.ps1
+   ```
+
+2. **Batch Script** (Alternative):
+   ```cmd
+   start-dev.bat
+   ```
+
+These scripts will automatically:
+- Create and activate Python virtual environment
+- Install all backend dependencies
+- Start the backend server on `http://localhost:8000`
+- Start the frontend server on `http://localhost:3000`
+
+### Manual Setup
+
+#### Backend Setup
 
 1. **Navigate to backend directory**:
    ```bash
@@ -84,7 +106,7 @@ SonicFix is an AI-powered audio enhancement application that uses the SonicMaste
    The API will be available at `http://localhost:8000`
    API documentation: `http://localhost:8000/docs`
 
-### Frontend Setup
+#### Frontend Setup
 
 1. **Navigate to frontend directory**:
    ```bash
@@ -101,13 +123,13 @@ SonicFix is an AI-powered audio enhancement application that uses the SonicMaste
 3. **Start the development server**:
    ```bash
    # For web
-   npm run web
+   npx expo start --web --port 3000
    
    # For mobile (requires Expo Go app)
    npm start
    ```
 
-   The web app will be available at `http://localhost:8081`
+   The web app will be available at `http://localhost:3000`
 
 ### Docker Setup (Alternative)
 

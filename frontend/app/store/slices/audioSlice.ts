@@ -36,7 +36,7 @@ const initialState: AudioState = {
 // Async thunks
 export const uploadAudioFile = createAsyncThunk(
   'audio/uploadFile',
-  async (file: { uri: string; name: string; type: string }, { rejectWithValue }) => {
+  async (file: File, { rejectWithValue }) => {
     try {
       const response = await audioAPI.uploadFile(file);
       return response;
@@ -56,6 +56,30 @@ export const generateWaveform = createAsyncThunk(
       return mockWaveform;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Waveform generation failed');
+    }
+  }
+);
+
+export const deleteAudioFile = createAsyncThunk(
+  'audio/deleteFile',
+  async (fileId: string, { rejectWithValue }) => {
+    try {
+      const response = await audioAPI.deleteFile(fileId);
+      return { fileId, ...response };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Delete failed');
+    }
+  }
+);
+
+export const fetchAudioFiles = createAsyncThunk(
+  'audio/fetchFiles',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await audioAPI.getFiles();
+      return response.files;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to fetch files');
     }
   }
 );
@@ -124,8 +148,10 @@ const audioSlice = createSlice({
           size: action.payload.size,
           uploadTime: action.payload.upload_time,
         };
-        state.currentFile = newFile;
         state.uploadedFiles.push(newFile);
+        if (state.uploadedFiles.length === 1) {
+          state.currentFile = newFile;
+        }
       })
       .addCase(uploadAudioFile.rejected, (state, action) => {
         state.isUploading = false;
@@ -144,6 +170,31 @@ const audioSlice = createSlice({
       })
       .addCase(generateWaveform.rejected, (state, action) => {
         state.error = action.payload as string;
+      })
+      // Delete file
+      .addCase(deleteAudioFile.fulfilled, (state, action) => {
+        const fileId = action.payload.fileId;
+        // Remove from uploaded files
+        state.uploadedFiles = state.uploadedFiles.filter(file => file.id !== fileId);
+        // Clear current file if it was the deleted one
+        if (state.currentFile?.id === fileId) {
+          state.currentFile = null;
+        }
+      })
+      .addCase(deleteAudioFile.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
+      // Fetch files
+      .addCase(fetchAudioFiles.fulfilled, (state, action) => {
+        state.uploadedFiles = action.payload.map((file: any) => ({
+          id: file.id,
+          filename: file.filename,
+          size: file.size,
+          uploadTime: file.upload_time,
+        }));
+      })
+      .addCase(fetchAudioFiles.rejected, (state, action) => {
+        state.error = action.payload as string;
       });
   },
 });
@@ -159,5 +210,7 @@ export const {
   removeUploadedFile,
   updateFileWaveform,
 } = audioSlice.actions;
+
+// Async thunks are already exported above with their declarations
 
 export default audioSlice.reducer;

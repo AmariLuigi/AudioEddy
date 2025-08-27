@@ -9,10 +9,12 @@ const API_BASE_URL = Platform.OS === 'web'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 0, // No timeout for uploads - let individual requests set their own
+  // Don't set default Content-Type - let each request set its own
+  // Optimize for large file uploads
+  maxContentLength: Infinity, // Remove size limits
+  maxBodyLength: Infinity, // Remove size limits
+  // Note: httpAgent removed as Node.js 'http' module is not available in React Native/Expo
 });
 
 // Request interceptor for logging
@@ -30,19 +32,30 @@ api.interceptors.request.use(
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
-    console.log(`API Response: ${response.status} ${response.config.url}`);
+    console.log(`✅ API Response: ${response.status} ${response.config.url}`);
     return response;
   },
   (error) => {
-    console.error('API Response Error:', error.response?.data || error.message);
+    console.error('❌ API Response Error Details:');
+    console.error('- Error code:', error.code);
+    console.error('- Error message:', error.message);
+    console.error('- Response status:', error.response?.status);
+    console.error('- Response data:', error.response?.data);
+    console.error('- Request URL:', error.config?.url);
+    console.error('- Request method:', error.config?.method);
+    console.error('- Full error object:', error);
     
     // Handle common error cases
     if (error.response?.status === 404) {
       throw new Error('Resource not found');
     } else if (error.response?.status === 500) {
       throw new Error('Server error occurred');
-    } else if (error.code === 'NETWORK_ERROR') {
-      throw new Error('Network connection failed');
+    } else if (error.code === 'NETWORK_ERROR' || error.code === 'ERR_NETWORK') {
+      throw new Error('Network connection failed - check if backend is running on http://localhost:8000');
+    } else if (error.code === 'ECONNREFUSED') {
+      throw new Error('Connection refused - backend server not accessible');
+    } else if (error.code === 'TIMEOUT' || error.code === 'ECONNABORTED') {
+      throw new Error('Request timeout - upload took too long');
     }
     
     throw error;
@@ -52,29 +65,16 @@ api.interceptors.response.use(
 // API Functions
 export const audioAPI = {
   // Upload audio file
-  async uploadFile(file: { uri: string; name: string; type: string }) {
+  async uploadFile(file: File) {
     const formData = new FormData();
+    formData.append('file', file);
     
-    if (Platform.OS === 'web') {
-      // Web implementation
-      const response = await fetch(file.uri);
-      const blob = await response.blob();
-      formData.append('file', blob, file.name);
-    } else {
-      // React Native implementation
-      formData.append('file', {
-        uri: file.uri,
-        name: file.name,
-        type: file.type,
-      } as any);
-    }
-    
+    // Don't set Content-Type header - let browser set it with boundary
     const response = await api.post('/upload', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined, // This allows axios to set the correct multipart boundary
       },
     });
-    
     return response.data;
   },
   
@@ -83,6 +83,10 @@ export const audioAPI = {
     const response = await api.post('/process', {
       file_id: fileId,
       enhancement_type: enhancementType,
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
     
     return response.data;
@@ -93,6 +97,10 @@ export const audioAPI = {
     const response = await api.post('/enhance', {
       file_id: fileId,
       prompt: prompt,
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
     
     return response.data;
@@ -138,6 +146,18 @@ export const audioAPI = {
     }
   },
   
+  // Delete audio file
+  async deleteFile(fileId: string) {
+    const response = await api.delete(`/delete/${fileId}`);
+    return response.data;
+  },
+
+  // Get all uploaded files
+  async getFiles() {
+    const response = await api.get('/files');
+    return response.data;
+  },
+
   // Health check
   async healthCheck() {
     const response = await api.get('/health');

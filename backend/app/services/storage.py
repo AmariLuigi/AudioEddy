@@ -44,6 +44,29 @@ class StorageService:
             logger.error(f"Failed to save upload: {str(e)}")
             raise RuntimeError(f"Failed to save uploaded file: {str(e)}")
     
+    async def save_upload_streaming(self, file: UploadFile, file_id: str) -> str:
+        """Save uploaded file with streaming for better performance on large files"""
+        try:
+            # Get file extension from original filename
+            file_extension = Path(file.filename).suffix if file.filename else ".wav"
+            file_path = self.uploads_path / f"{file_id}{file_extension}"
+            
+            # Stream the file in chunks for better memory efficiency
+            chunk_size = 1024 * 1024  # 1MB chunks for optimal performance
+            with open(file_path, "wb") as buffer:
+                while True:
+                    chunk = await file.read(chunk_size)
+                    if not chunk:
+                        break
+                    buffer.write(chunk)
+            
+            logger.info(f"File uploaded successfully with streaming: {file_path}")
+            return str(file_path)
+            
+        except Exception as e:
+            logger.error(f"Failed to save upload with streaming: {str(e)}")
+            raise RuntimeError(f"Failed to save uploaded file: {str(e)}")
+    
     def get_file_path(self, file_id: str) -> str:
         """Get the full path for an uploaded file"""
         # Try different common audio extensions
