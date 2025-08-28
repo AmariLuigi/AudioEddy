@@ -320,11 +320,14 @@ class JobInfoResponse(BaseModel):
 @app.get("/job-info/{job_id}", response_model=JobInfoResponse)
 async def get_job_info(job_id: str):
     """Get job information from JobManager including file paths"""
+    logger.info(f"[API] Getting job info for job_id: {job_id}")
     job_info = job_manager.get_job_by_id(job_id)
     if not job_info:
+        logger.warning(f"[API] Job not found in tracker: {job_id}")
         raise HTTPException(status_code=404, detail="Job not found in job tracker")
     
-    return JobInfoResponse(
+    logger.info(f"[API] Job info found: {job_info}")
+    response = JobInfoResponse(
         job_id=job_info["job_id"],
         original_file_path=job_info["original_file_path"],
         enhanced_audio_path=job_info["enhanced_audio_path"],
@@ -332,6 +335,8 @@ async def get_job_info(job_id: str):
         timestamp=job_info["timestamp"],
         error_details=job_info["error_details"]
     )
+    logger.info(f"[API] Returning job info response: {response}")
+    return response
 
 @app.get("/files")
 async def list_files():
@@ -410,25 +415,69 @@ async def download_file(file_id: str):
     raise HTTPException(status_code=404, detail="File not found")
 
 @app.get("/audio/{job_id}/{audio_type}")
-async def get_audio_by_job(job_id: str, audio_type: str):
+async def get_audio_by_job(job_id: str, audio_type: str, request: Request):
     """Get audio file by job ID and type (original or enhanced)"""
+    # Enhanced logging for audio requests
+    logger.info(f"[API] ===== AUDIO REQUEST RECEIVED =====")
+    logger.info(f"[API] Request details: job_id={job_id}, audio_type={audio_type}")
+    logger.info(f"[API] Request headers: {dict(request.headers)}")
+    logger.info(f"[API] Request client: {request.client}")
+    logger.info(f"[API] Request URL: {request.url}")
+    logger.info(f"[API] Timestamp: {datetime.now().isoformat()}")
+    
     if audio_type not in ["original", "enhanced"]:
+        logger.error(f"[API] Invalid audio type: {audio_type}")
         raise HTTPException(status_code=400, detail="Audio type must be 'original' or 'enhanced'")
+    
+    # Special logging for enhanced audio requests
+    if audio_type == "enhanced":
+        logger.info(f"[API] ===== ENHANCED AUDIO REQUEST =====\n"
+                   f"Job ID: {job_id}\n"
+                   f"Request Time: {datetime.now().isoformat()}\n"
+                   f"Client: {request.client}\n"
+                   f"User-Agent: {request.headers.get('user-agent', 'Unknown')}")
     
     job_info = job_manager.get_job_by_id(job_id)
     if not job_info:
+        logger.warning(f"[API] Job not found for audio request: {job_id}")
+        logger.warning(f"[API] Available jobs in JobManager: {job_manager.get_all_jobs()}")
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    logger.info(f"[API] Job info retrieved: {job_info}")
     
     if audio_type == "original":
         file_path = job_info["original_file_path"]
         if not file_path or not os.path.exists(file_path):
+            logger.error(f"[API] Original audio file not found: {file_path}")
             raise HTTPException(status_code=404, detail="Original audio file not found")
         filename = f"original_{os.path.basename(file_path)}"
+        logger.info(f"[API] Serving original audio: {file_path}")
     else:  # enhanced
         file_path = job_info["enhanced_audio_path"]
-        if not file_path or not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="Enhanced audio file not found")
+        logger.info(f"[API] Enhanced audio path from JobManager: {file_path}")
+        
+        if not file_path:
+            logger.error(f"[API] Enhanced audio path is None/empty for job {job_id}")
+            logger.error(f"[API] Job status: {job_info.get('status')}")
+            logger.error(f"[API] Full job info: {job_info}")
+            raise HTTPException(status_code=404, detail="Enhanced audio path not available")
+        
+        if not os.path.exists(file_path):
+            logger.error(f"[API] Enhanced audio file does not exist on disk: {file_path}")
+            logger.error(f"[API] File permissions check: {os.access(os.path.dirname(file_path), os.R_OK) if os.path.dirname(file_path) else 'N/A'}")
+            logger.error(f"[API] Directory contents: {os.listdir(os.path.dirname(file_path)) if os.path.dirname(file_path) and os.path.exists(os.path.dirname(file_path)) else 'Directory not found'}")
+            raise HTTPException(status_code=404, detail="Enhanced audio file not found on disk")
+        
         filename = f"enhanced_{job_id}.wav"
+        file_size = os.path.getsize(file_path)
+        logger.info(f"[API] ===== ENHANCED AUDIO FILE FOUND =====\n"
+                   f"File Path: {file_path}\n"
+                   f"File Size: {file_size} bytes\n"
+                   f"File Exists: {os.path.exists(file_path)}\n"
+                   f"Filename: {filename}")
+    
+    logger.info(f"[API] Serving {audio_type} audio file: {file_path} as {filename}")
+    logger.info(f"[API] ===== AUDIO REQUEST COMPLETED =====")
     
     return FileResponse(
         path=file_path,
@@ -488,6 +537,31 @@ async def delete_file(file_id: str):
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.get("/file-health/{file_id}")
+async def check_file_health(file_id: str):
+    """Check if a file exists on the server"""
+    try:
+        # Check if file exists in database
+        file_record = DatabaseService.get_audio_file(file_id)
+        if not file_record:
+            return {"exists": False, "file_id": file_id, "reason": "File not found in database"}
+        
+        # Check if physical file exists
+        upload_path = storage_service.get_file_path(file_id)
+        if os.path.exists(upload_path):
+            return {"exists": True, "file_id": file_id}
+        
+        # Check if enhanced file exists
+        output_path = storage_service.get_output_path(file_id)
+        if os.path.exists(output_path):
+            return {"exists": True, "file_id": file_id}
+        
+        return {"exists": False, "file_id": file_id, "reason": "Physical file not found"}
+        
+    except Exception as e:
+        logger.error(f"Failed to check file health for {file_id}: {str(e)}")
+        return {"exists": False, "file_id": file_id, "reason": f"Error: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn

@@ -305,6 +305,29 @@ SonicMaster/
 config.json
 secrets.json
 
+# Job tracking and runtime files
+jobs_tracker.json
+*.log
+
+# API keys and environment files
+.env*
+!.env.example
+api_keys.json
+config/secrets.yaml
+
+# Frontend build artifacts
+frontend/dist/
+frontend/build/
+
+# Backend runtime files
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
+backend/storage/outputs/*
+!backend/storage/outputs/.gitkeep
+
+# Backup directories
+frontend_backup/
+
 # Jupyter
 .ipynb_checkpoints/
 

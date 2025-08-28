@@ -1253,8 +1253,8 @@ class LocalSonicMasterService:
             out_path.parent.mkdir(parents=True, exist_ok=True)
             data = final_audio.numpy().T  # [T, C]
             
-            # Save as WAV
-            sf.write(out_path.as_posix(), data, sr, format="WAV")
+            # Save as WAV with correct sample rate
+            sf.write(out_path.as_posix(), data, self.sample_rate, format="WAV")
             
             # Comprehensive cleanup
             del vae, final_audio, result_latent, degraded_latents, audio_batch, audio
