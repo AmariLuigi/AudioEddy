@@ -21,6 +21,7 @@ const Results = () => {
   const [processingTime, setProcessingTime] = useState(0)
   const [originalAudioRef, setOriginalAudioRef] = useState(null)
   const [enhancedAudioRef, setEnhancedAudioRef] = useState(null)
+  const [waveWidth, setWaveWidth] = useState(400)
 
   useEffect(() => {
     if (!jobId || !file) {
@@ -67,6 +68,28 @@ const Results = () => {
 
     return () => clearInterval(interval)
   }, [isPlaying])
+
+  // Handle responsive wave width
+  useEffect(() => {
+    const updateWaveWidth = () => {
+      const screenWidth = window.innerWidth
+      let containerWidth
+      
+      if (screenWidth < 640) { // sm breakpoint
+        containerWidth = Math.min(screenWidth - 80, 320) // Mobile: less padding
+      } else if (screenWidth < 1024) { // lg breakpoint
+        containerWidth = Math.min(screenWidth - 120, 380) // Tablet: medium padding
+      } else {
+        containerWidth = Math.min((screenWidth / 2) - 100, 400) // Desktop: half screen minus padding
+      }
+      
+      setWaveWidth(Math.max(containerWidth, 250)) // Minimum width of 250px
+    }
+
+    updateWaveWidth()
+    window.addEventListener('resize', updateWaveWidth)
+    return () => window.removeEventListener('resize', updateWaveWidth)
+  }, [])
 
   const handleDownload = () => {
     if (jobData && jobData.status === 'completed') {
@@ -231,21 +254,23 @@ const Results = () => {
           preload="metadata"
         />
 
-        <motion.div variants={fadeInUp} className="grid lg:grid-cols-2 gap-8 mb-8">
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+        <motion.div variants={fadeInUp} className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mb-8">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/10">
             <h2 className="text-xl font-semibold text-white mb-4">Original Audio</h2>
             <div className="space-y-4">
-              <div className="bg-gray-800/50 rounded-xl p-4 h-32 flex items-center justify-center">
-                <WaveVisualization
-                  frequencyData={currentAudio === 'original' && isPlaying ? frequencyData : new Array(256).fill(20)}
-                  width={400}
-                  height={80}
-                  lineColor={['#6B7280', '#9CA3AF']}
-                  lines={3}
-                  lineGap={8}
-                  sections={12}
-                  offsetPixelSpeed={currentAudio === 'original' && isPlaying ? -100 : 0}
-                />
+              <div className="bg-gray-800/50 rounded-xl p-4 h-32 flex items-center justify-center overflow-hidden">
+                <div className="w-full">
+                  <WaveVisualization
+                    frequencyData={currentAudio === 'original' && isPlaying ? frequencyData : new Array(256).fill(20)}
+                    width={waveWidth}
+                    height={80}
+                    lineColor={['#6B7280', '#9CA3AF']}
+                    lines={3}
+                    lineGap={8}
+                    sections={12}
+                    offsetPixelSpeed={currentAudio === 'original' && isPlaying ? -100 : 0}
+                  />
+                </div>
               </div>
               
               <div className="flex items-center justify-between">
@@ -267,20 +292,22 @@ const Results = () => {
             </div>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+          <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/10">
             <h2 className="text-xl font-semibold text-white mb-4">Enhanced Audio</h2>
             <div className="space-y-4">
-              <div className="bg-gradient-to-r from-purple-900/30 to-violet-900/30 rounded-xl p-4 h-32 flex items-center justify-center">
-                <WaveVisualization
-                  frequencyData={currentAudio === 'enhanced' && isPlaying ? frequencyData : new Array(256).fill(20)}
-                  width={400}
-                  height={80}
-                  lineColor={['#8B5CF6', '#A78BFA']}
-                  lines={4}
-                  lineGap={6}
-                  sections={16}
-                  offsetPixelSpeed={currentAudio === 'enhanced' && isPlaying ? -150 : 0}
-                />
+              <div className="bg-gradient-to-r from-purple-900/30 to-violet-900/30 rounded-xl p-4 h-32 flex items-center justify-center overflow-hidden">
+                <div className="w-full">
+                  <WaveVisualization
+                    frequencyData={currentAudio === 'enhanced' && isPlaying ? frequencyData : new Array(256).fill(20)}
+                    width={waveWidth}
+                    height={80}
+                    lineColor={['#8B5CF6', '#A78BFA']}
+                    lines={4}
+                    lineGap={6}
+                    sections={16}
+                    offsetPixelSpeed={currentAudio === 'enhanced' && isPlaying ? -150 : 0}
+                  />
+                </div>
               </div>
               
               <div className="flex items-center justify-between">
