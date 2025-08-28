@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { Headphones, Zap, Music, Sparkles, ArrowRight } from 'lucide-react'
+import { Headphones, Zap, Music, Sparkles, ArrowRight, Wand2 } from 'lucide-react'
 import { fadeInUp, staggerContainer } from '../utils/motion'
 
 const Home = () => {
@@ -11,6 +11,11 @@ const Home = () => {
       icon: Zap,
       title: 'AI-Powered Enhancement',
       description: 'Advanced algorithms analyze and enhance your audio with professional-grade processing'
+    },
+    {
+      icon: Wand2,
+      title: 'AI Music Generation',
+      description: 'Create original music from text descriptions using cutting-edge AI technology'
     },
     {
       icon: Music,
@@ -50,11 +55,15 @@ const Home = () => {
               onClick={() => navigate('/enhance')}
               className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600 text-white font-semibold rounded-xl transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg shadow-purple-500/25 touch-manipulation"
             >
-              <span>Start Enhancing</span>
+              <span>Enhance Audio</span>
               <ArrowRight className="h-5 w-5" />
             </button>
-            <button className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all duration-300 backdrop-blur-sm border border-white/20 touch-manipulation">
-              Learn More
+            <button
+              onClick={() => navigate('/generate')}
+              className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold rounded-xl transition-all duration-300 flex items-center justify-center space-x-2 shadow-lg shadow-pink-500/25 touch-manipulation"
+            >
+              <Wand2 className="h-5 w-5" />
+              <span>Generate Music</span>
             </button>
           </motion.div>
         </div>

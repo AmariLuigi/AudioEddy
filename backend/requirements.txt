@@ -43,3 +43,15 @@ nvidia-ml-py==12.535.133
 
 # Optional: Enhanced GPU memory management
 cupy-cuda12x>=12.0.0  # For enhanced GPU memory recycling
+
+# JAM (Text-to-Music) dependencies
+accelerate>=0.20.0
+pyloudnorm>=0.1.1
+jiwer>=3.0.0
+demucs>=4.0.0
+webdataset>=0.2.0
+omegaconf>=2.3.0
+unidecode>=1.3.0
+inflect>=6.0.0
+wandb>=0.15.0  # For model logging (optional)
+deep-phonemizer>=0.0.19  # For phoneme processing

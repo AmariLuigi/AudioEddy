@@ -86,6 +86,39 @@ class ApiService {
   async healthCheck() {
     return this.get('/health')
   }
+
+  // Music Generation APIs
+  async generateMusic(params) {
+    // Support both old format (prompt, duration) and new format (object)
+    if (typeof params === 'string') {
+      // Legacy support: generateMusic(prompt, duration)
+      const prompt = params
+      const duration = arguments[1] || 30
+      return this.post('/generate-music', {
+        prompt: prompt,
+        duration: duration
+      })
+    }
+    
+    // New format: generateMusic({ prompt, duration, reference_audio_id })
+    return this.post('/generate-music', {
+      prompt: params.prompt,
+      duration: params.duration || 30,
+      reference_audio_id: params.reference_audio_id || null
+    })
+  }
+
+  async getMusicGenerationStatus(jobId) {
+    return this.get(`/music-status/${jobId}`)
+  }
+
+  getGeneratedMusicUrl(jobId) {
+    return `${this.baseURL}/download-music/${jobId}`
+  }
+
+  getGeneratedMusicDownloadUrl(jobId) {
+    return `${this.baseURL}/download-music/${jobId}`
+  }
 }
 
 export default new ApiService()

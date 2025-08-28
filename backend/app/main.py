@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 from .services.local_sonicmaster import LocalSonicMasterService
 from .services.storage import StorageService
-from .models import JobStatus, EnhancementType
+from .services.jam_service import JAMService
+from .models import JobStatus, EnhancementType, MusicGenerationRequest, MusicGenerationResponse, MusicGenerationJob
 from .db import get_db, init_db, DatabaseService
 
 # Import JobManager
@@ -52,6 +53,19 @@ app.add_middleware(
 
 # Initialize services
 sonic_service = LocalSonicMasterService()
+jam_service = JAMService()
+
+# Initialize JAM service asynchronously
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    try:
+        await jam_service.initialize()
+        logger.info("JAM service initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize JAM service: {str(e)}")
+        # Continue without JAM service for now
+        pass
 # Use absolute path to backend storage directory
 import os
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -532,6 +546,119 @@ async def delete_file(file_id: str):
     except Exception as e:
         logger.error(f"Failed to delete file {file_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+
+@app.post("/generate-music", response_model=MusicGenerationResponse)
+async def generate_music(request: MusicGenerationRequest, background_tasks: BackgroundTasks):
+    """Generate music using JAM model"""
+    try:
+        job_id = str(uuid.uuid4())
+        
+        # Initialize job status
+        music_jobs = getattr(app.state, 'music_jobs', {})
+        music_jobs[job_id] = MusicGenerationJob(
+            job_id=job_id,
+            status="pending",
+            progress=0.0,
+            prompt=request.prompt,
+            duration=request.duration,
+            reference_audio_id=request.reference_audio_id,
+            created_at=datetime.now()
+        )
+        app.state.music_jobs = music_jobs
+        
+        # Start background processing
+        background_tasks.add_task(generate_music_task, job_id, request.prompt, request.duration, request.reference_audio_id)
+        
+        return MusicGenerationResponse(
+            job_id=job_id,
+            status="pending",
+            progress=0.0
+        )
+        
+    except Exception as e:
+        logger.error(f"Music generation request failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def generate_music_task(job_id: str, prompt: str, duration: float, reference_audio_id: Optional[str] = None):
+    """Background task for music generation"""
+    try:
+        music_jobs = getattr(app.state, 'music_jobs', {})
+        
+        # Update status to processing
+        music_jobs[job_id].status = "processing"
+        music_jobs[job_id].progress = 0.1
+        
+        # Generate music
+        result_file_id = str(uuid.uuid4())
+        output_path = storage_service.get_output_path(result_file_id)
+        
+        music_jobs[job_id].progress = 0.3
+        
+        # Get reference audio path if provided
+        reference_audio_path = None
+        if reference_audio_id:
+            reference_audio_path = storage_service.get_file_path(reference_audio_id)
+            if not os.path.exists(reference_audio_path):
+                logger.warning(f"Reference audio file not found: {reference_audio_path}")
+                reference_audio_path = None
+        
+        # Call JAM service
+        await jam_service.generate_music(prompt, duration, output_path, reference_audio_path)
+        
+        music_jobs[job_id].progress = 0.9
+        
+        # Update job completion
+        music_jobs[job_id].status = "completed"
+        music_jobs[job_id].progress = 1.0
+        music_jobs[job_id].result_file_id = result_file_id
+        
+    except Exception as e:
+        music_jobs = getattr(app.state, 'music_jobs', {})
+        if job_id in music_jobs:
+            music_jobs[job_id].status = "failed"
+            music_jobs[job_id].error = str(e)
+        logger.error(f"Music generation failed for job {job_id}: {str(e)}")
+
+@app.get("/music-status/{job_id}", response_model=MusicGenerationResponse)
+async def get_music_generation_status(job_id: str):
+    """Get music generation job status"""
+    music_jobs = getattr(app.state, 'music_jobs', {})
+    
+    if job_id not in music_jobs:
+        raise HTTPException(status_code=404, detail="Music generation job not found")
+    
+    job = music_jobs[job_id]
+    return MusicGenerationResponse(
+        job_id=job_id,
+        status=job.status,
+        progress=job.progress,
+        result_file_id=job.result_file_id,
+        error=job.error
+    )
+
+@app.get("/download-music/{job_id}")
+async def download_generated_music(job_id: str):
+    """Download generated music file"""
+    music_jobs = getattr(app.state, 'music_jobs', {})
+    
+    if job_id not in music_jobs:
+        raise HTTPException(status_code=404, detail="Music generation job not found")
+    
+    job = music_jobs[job_id]
+    
+    if job.status != "completed" or not job.result_file_id:
+        raise HTTPException(status_code=400, detail="Music generation not completed or failed")
+    
+    output_path = storage_service.get_output_path(job.result_file_id)
+    
+    if not os.path.exists(output_path):
+        raise HTTPException(status_code=404, detail="Generated music file not found")
+    
+    return FileResponse(
+        path=output_path,
+        media_type='audio/wav',
+        filename=f"generated_music_{job_id}.wav"
+    )
 
 @app.get("/health")
 async def health_check():

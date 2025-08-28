@@ -12,6 +12,7 @@ const Navbar = () => {
   const navItems = user ? [
     { name: 'Home', path: '/' },
     { name: 'Enhance Audio', path: '/enhance' },
+    { name: 'Generate Music', path: '/generate' },
     { name: 'Profile', path: '/profile' }
   ] : [
     { name: 'Home', path: '/' },

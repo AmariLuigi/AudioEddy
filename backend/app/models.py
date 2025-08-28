@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 class JobStatus(str, Enum):
@@ -47,6 +47,36 @@ class User(BaseModel):
     email: Optional[str] = None
     created_at: datetime
     last_active: Optional[datetime] = None
+
+class MusicGenerationJob(BaseModel):
+    """Music generation job model"""
+    job_id: str  # Changed from id to job_id for consistency
+    prompt: str  # Changed from lyrics to prompt for text-to-music
+    style_prompt: Optional[str] = None
+    genre_tags: Optional[List[str]] = None
+    duration: float = 30.0
+    reference_audio_id: Optional[str] = None
+    status: str  # Changed from JobStatus to str for simplicity
+    progress: float = 0.0
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    result_file_id: Optional[str] = None
+    error: Optional[str] = None  # Changed from error_message to error
+
+class MusicGenerationRequest(BaseModel):
+    """Request model for music generation"""
+    prompt: str  # Changed from lyrics to prompt for text-to-music
+    style_prompt: Optional[str] = None
+    genre_tags: Optional[List[str]] = None
+    duration: float = 30.0
+    reference_audio_id: Optional[str] = None  # Reference audio file ID
+    
+class MusicGenerationResponse(BaseModel):
+    """Response model for music generation"""
+    job_id: str
+    status: str
+    estimated_time: Optional[int] = None
+    message: Optional[str] = None
 
 # Enhancement type to prompt mapping for SonicMaster
 ENHANCEMENT_PROMPTS = {
