@@ -198,9 +198,11 @@ def load_model(model_config, checkpoint_path, device):
     if "text_num_embeds" not in dit_config:
         dit_config["text_num_embeds"] = 256  # Default value from DiT
     
+    cfm_config = model_config["cfm"].copy()
+    
     cfm = CFM(
         transformer=DiT(**dit_config),
-        **model_config["cfm"]
+        **cfm_config
     )
     cfm = cfm.to(device)
     
@@ -545,4 +547,4 @@ def main():
             print(f"  Process {proc_idx}: {count} samples")
 
 if __name__ == "__main__":
-    main() 
+    main()

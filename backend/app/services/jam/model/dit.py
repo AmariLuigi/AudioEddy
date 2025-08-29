@@ -39,6 +39,7 @@ from .modules import (
     _prepare_decoder_attention_mask,
 )
 
+
 # Text embedding
 class TextEmbedding(nn.Module):
     def __init__(self, text_num_embeds, text_dim, max_pos, conv_layers=0, conv_mult=2):
@@ -118,7 +119,8 @@ class DiT(nn.Module):
         long_skip_connection=False,
         max_frames=2048,
         grad_ckpt=False,
-        use_implicit_duration=False
+        use_implicit_duration=False,
+
     ):
         super().__init__()
         
@@ -148,6 +150,8 @@ class DiT(nn.Module):
             [LlamaDecoderLayer(llama_config, layer_idx=i) for i in range(depth)]
         )
         self.rotary_emb = LlamaRotaryEmbedding(config=llama_config)
+        
+
         self.long_skip_connection = nn.Linear(dim * 2, dim, bias=False) if long_skip_connection else None
 
         self.text_fusion_linears = nn.ModuleList(
@@ -164,6 +168,8 @@ class DiT(nn.Module):
 
         self.norm_out = AdaLayerNormZero_Final(dim, cond_dim)  # final modulation
         self.proj_out = nn.Linear(dim, mel_dim)
+        
+
 
     def forward(
         self,

@@ -40,6 +40,7 @@ from .utils import (
     mask_from_frac_lengths,
 )
 
+
 def custom_mask_from_start_end_indices(
     seq_len: int["b"],  # noqa: F821
     latent_pred_segments,
@@ -81,7 +82,8 @@ class CFM(nn.Module):
         frac_lengths_mask: tuple[float, float] = (0.7, 1.0),
         vocab_char_map: dict[str:int] | None = None,
         max_frames=2048,
-        no_edit=False
+        no_edit=False,
+
     ):
         super().__init__()
 
@@ -105,6 +107,8 @@ class CFM(nn.Module):
         self.transformer = transformer
         dim = transformer.dim
         self.dim = dim
+        
+
 
         # conditional flow related
         self.sigma = sigma
@@ -198,10 +202,13 @@ class CFM(nn.Module):
 
         # Initialize progress bar for sampling steps
         pbar = tqdm(total=steps, desc="Sampling", unit="step")
+        
+
 
         def fn(t, x):
             # Update progress bar with current time value
-            pbar.set_postfix({"t": f"{t.item():.3f}"})
+            postfix = {"t": f"{t.item():.3f}"}
+            pbar.set_postfix(postfix)
             pbar.update(1)
             
             # predict flow
@@ -266,6 +273,8 @@ class CFM(nn.Module):
         
         # Close progress bar
         pbar.close()
+        
+
 
         sampled = trajectory[-1]
         out = sampled
