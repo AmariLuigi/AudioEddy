@@ -18,7 +18,8 @@ const MusicGeneration = () => {
   const [referenceAudio, setReferenceAudio] = useState(null)
   const [showReferenceUpload, setShowReferenceUpload] = useState(false)
   const [useReferenceAudio, setUseReferenceAudio] = useState(true)
-  const [genreTags, setGenreTags] = useState('')
+  const [genreTags, setGenreTags] = useState([])
+  const [currentTagInput, setCurrentTagInput] = useState('')
   const [isPremiumUser] = useState(false) // This would come from user context in real app
   const audioRef = useRef(null)
 
@@ -33,7 +34,7 @@ const MusicGeneration = () => {
       return
     }
 
-    if (!useReferenceAudio && !genreTags.trim()) {
+    if (!useReferenceAudio && genreTags.length === 0) {
       setError('Please enter genre tags or switch to reference audio mode')
       return
     }
@@ -48,7 +49,7 @@ const MusicGeneration = () => {
         prompt: prompt.trim(),
         duration: duration,
         reference_audio_id: useReferenceAudio ? (referenceAudio?.file_id || null) : null,
-        genre_tags: !useReferenceAudio ? genreTags.trim() : null
+        genre_tags: !useReferenceAudio ? genreTags.join(', ') : null
       }
 
       const response = await ApiService.generateMusic(requestData)
@@ -106,6 +107,27 @@ const MusicGeneration = () => {
 
   const removeReferenceAudio = () => {
     setReferenceAudio(null)
+  }
+
+  const addTag = (tag) => {
+    const trimmedTag = tag.trim()
+    if (trimmedTag && !genreTags.includes(trimmedTag)) {
+      setGenreTags([...genreTags, trimmedTag])
+    }
+    setCurrentTagInput('')
+  }
+
+  const removeTag = (tagToRemove) => {
+    setGenreTags(genreTags.filter(tag => tag !== tagToRemove))
+  }
+
+  const handleTagInputKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addTag(currentTagInput)
+    } else if (e.key === 'Backspace' && currentTagInput === '' && genreTags.length > 0) {
+      removeTag(genreTags[genreTags.length - 1])
+    }
   }
 
   return (
@@ -235,16 +257,53 @@ const MusicGeneration = () => {
               ) : (
                 <div>
                   <p className="text-xs text-gray-400 mb-3">
-                    Enter genre tags separated by commas (e.g., "indie, folk, acoustic, dreamy")
+                    Enter genre tags and press Enter to add them (e.g., "indie", "folk", "acoustic")
                   </p>
-                  <input
-                    type="text"
-                    value={genreTags}
-                    onChange={(e) => setGenreTags(e.target.value)}
-                    placeholder="indie, folk, acoustic, dreamy, soft, melodic"
-                    className="w-full px-4 py-3 bg-black/20 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    disabled={isGenerating}
-                  />
+                  <div className="space-y-3">
+                    {/* Display existing tags */}
+                    {genreTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {genreTags.map((tag, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center space-x-1 px-3 py-1 bg-purple-600/20 border border-purple-500/30 text-purple-300 rounded-full text-sm"
+                          >
+                            <span>{tag}</span>
+                            <button
+                              onClick={() => removeTag(tag)}
+                              className="p-0.5 hover:bg-purple-500/30 text-purple-400 hover:text-purple-200 rounded-full transition-colors"
+                              disabled={isGenerating}
+                              title={`Remove ${tag} tag`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Tag input with add button */}
+                     <div className="relative">
+                       <input
+                         type="text"
+                         value={currentTagInput}
+                         onChange={(e) => setCurrentTagInput(e.target.value)}
+                         onKeyDown={handleTagInputKeyDown}
+                         placeholder={genreTags.length === 0 ? "Type a genre and press Enter (e.g., indie, folk, acoustic)" : "Add another tag..."}
+                         className="w-full px-4 py-3 pr-12 bg-black/20 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                         disabled={isGenerating}
+                       />
+                       <button
+                         onClick={() => addTag(currentTagInput)}
+                         disabled={isGenerating || !currentTagInput.trim()}
+                         className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 bg-purple-600/20 hover:bg-purple-600/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-purple-400 hover:text-purple-300 disabled:text-gray-500 rounded transition-colors"
+                         title="Add tag"
+                       >
+                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                         </svg>
+                       </button>
+                     </div>
+                  </div>
                 </div>
               )}
               
@@ -361,7 +420,7 @@ const MusicGeneration = () => {
 
             <button
               onClick={handleGenerate}
-              disabled={isGenerating || !prompt.trim() || (!isPremiumUser && duration > 100) || (!useReferenceAudio && !genreTags.trim())}
+              disabled={isGenerating || !prompt.trim() || (!isPremiumUser && duration > 100) || (!useReferenceAudio && genreTags.length === 0)}
               className="w-full flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100"
             >
               {isGenerating ? (
