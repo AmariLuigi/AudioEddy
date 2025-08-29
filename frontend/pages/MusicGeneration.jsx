@@ -24,7 +24,7 @@ const MusicGeneration = () => {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
-      setError('Please enter a music description')
+      setError('Please enter lyrics')
       return
     }
 
@@ -133,13 +133,21 @@ const MusicGeneration = () => {
         >
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Music Description
-              </label>
+              <div className="flex items-center space-x-2 mb-2">
+                <label className="block text-sm font-medium text-gray-300">
+                  Lyrics
+                </label>
+                <div className="relative group">
+                  <AlertCircle className="h-4 w-4 text-gray-400 cursor-help" />
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black/90 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                    Do not describe the music here, the user should just input the lyrics.
+                  </div>
+                </div>
+              </div>
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe the music you want to generate (e.g., 'A peaceful acoustic guitar melody with soft vocals, folk style, dreamy and gentle')..."
+                placeholder="Enter your song lyrics here. Include verse, chorus, outro and bridge sections..."
                 className="w-full h-32 px-4 py-3 bg-black/20 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                 disabled={isGenerating}
               />
